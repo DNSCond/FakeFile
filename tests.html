@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<meta charset=UTF-8>
+<style>
+</style>
+<body>
+<ff-d ff-name="FakeFile">
+    <ff-f ff-name="my file" lastmod="2025-10-23T12:08:13Z" bytesize="500"
+    ></ff-f>
+    <ff-f ff-name="my other file"></ff-f>
+</ff-d>
+<button onclick=document.querySelector('ff-f').setAttribute('headerset-makerid','h') type=button>headerset-makerid
+</button>
+<script type=module>
+    import {FakeFileFile} from "./FakeFile.js";
+
+    {
+        const pre = document.createElement('pre');
+        pre.innerText = FakeFileFile.toString();//document.documentElement.outerHTML;
+        const ff = document.querySelector('ff-f');
+        pre.style.margin = '0';
+        ff.lastMod = new Date;
+        ff.append(pre);
+    }
+</script>
+</body>
