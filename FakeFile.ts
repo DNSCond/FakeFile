@@ -281,8 +281,15 @@ export class FakeFileFile extends FakeFileUIElement {
     #normalizeValueString(name: string, value: string): HTMLSpanElement | HTMLTimeElement {
         switch (name) {
             case "content-length": {
-                const innerText = cbyte(+value);
-                return Object.assign(this.ownerDocument.createElement('span'), {innerText});
+                const self = this;
+                return (function (value) {
+                    if (!Number.isFinite(value)) {
+                        const innerText = 'Invalid Number';
+                        return Object.assign(self.ownerDocument.createElement('data'), {innerText, value});
+                    }
+                    const innerText = cbyte(value);
+                    return Object.assign(self.ownerDocument.createElement('data'), {innerText, value});
+                })(+value);
             }
             case "last-modified": {
                 const d = new Date(value), dateTime = d.toISOString(), innerText = d.toUTCString();
