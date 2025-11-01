@@ -2,22 +2,89 @@
 var _a;
 export class FakeFileUIElement extends HTMLElement {
 }
-/*
-about types:
-
-the default type is string, so it can be omitted.
-
-write a string like "key1=type1,key2=type2,key3=type3", case-insensitive,
-whitespace ignored "key1 = type1, key2 = type2, key3 = type3".
-
-keys must be entered without the "headerset-*" prefix
-
-- isodatetime: write a isoString, formatted like Date.prototype.toISOString (or whatever you put in if its invalid)
-- date: write a isoString, formatted like Date.prototype.toUTCString
-- time: write a isoString, formatted like Date.prototype.toTimeString
-- bytes: write a number representing bytes, then it formats for humans
-
-*/
+/**
+ * about types:
+ *
+ * the default type is string, so it can be omitted.
+ *
+ * write a string like "key1=type1,key2=type2,key3=type3", case-insensitive,
+ * whitespace ignored "key1 = type1, key2 = type2, key3 = type3".
+ *
+ * keys must be entered without the "headerset-*" prefix
+ *
+ * - isodatetime: write a isoString, formatted like Date.prototype.toISOString (or whatever you put in if its invalid)
+ * - datetime-global: write a isoString, formatted like Date.prototype.toUTCString
+ * - datetime-utc: alias to datetime-global
+ * - datetime-local: write a isoString, formatted like Date.prototype.toString
+ * - date: write a isoString, formatted like Date.prototype.toUTCString
+ * - time: write a isoString, formatted like Date.prototype.toTimeString
+ * - bytes: write a number representing bytes, then it formats for humans
+ *
+ * @param type one of the strings of the above list.
+ * @param string the string to compute with.
+ * @param keepType whether to convert that to a string.
+ * @returns an object with `string` and `type`
+ */
+export function stringtoType(type, string, keepType = false) {
+    if (string === null)
+        return { string: null, type: 'string' };
+    const asIs = { string, type: 'string' };
+    if (type === undefined)
+        return asIs;
+    const timeValue = new Date(string), asTime = {
+        string: timeValue,
+        type: "time",
+        timeValue,
+    };
+    switch (type) {
+        case "isodatetime":
+            if (keepType)
+                return asTime;
+            if (isValidDate(timeValue)) {
+                return {
+                    string: timeValue.toISOString(),
+                    type: "time", timeValue,
+                };
+            }
+            else
+                return asIs;
+        case "datetime-utc":
+        case "datetime-global":
+            if (keepType)
+                return asTime;
+            return {
+                string: timeValue.toUTCString(),
+                type: "time", timeValue,
+            };
+        case "datetime-local":
+            if (keepType)
+                return asTime;
+            return {
+                string: timeValue.toString(),
+                type: "time", timeValue,
+            };
+        case "date":
+            if (keepType)
+                return asTime;
+            return {
+                string: timeValue.toDateString(),
+                type: "time", timeValue,
+            };
+        case "time":
+            if (keepType)
+                return asTime;
+            return {
+                string: timeValue.toTimeString(),
+                type: "time", timeValue,
+            };
+        case "bytes":
+            if (keepType)
+                return { string: +string, type: "string" };
+            return { string: cbyte(+string), type: "string" };
+        default:
+    }
+    return asIs;
+}
 export class FakeFileFile extends FakeFileUIElement {
     #observer;
     #abortController;
@@ -71,6 +138,47 @@ export class FakeFileFile extends FakeFileUIElement {
             this.updateHeaders();
         }
     }
+    disconnectedCallback() {
+        this.#abortController?.abort();
+        this.#observer?.disconnect();
+    }
+    attributeChangedCallback(name, oldValue, newValue) {
+        if (this.shadowRoot) {
+            switch (name) {
+                case 'ff-name': {
+                    const summery = this.shadowRoot.querySelector('summary');
+                    if (summery)
+                        summery.innerText = `File: "${newValue || this.tagName}"`;
+                    break;
+                }
+                case 'lastmod': {
+                    if (newValue !== null) {
+                        newValue = (new Date(newValue)).toUTCString();
+                        this.#recreateMetaData([{ changeName: 'last-modified', oldValue, newValue }]);
+                    }
+                    break;
+                }
+                case 'bytesize': {
+                    if (newValue !== null) {
+                        this.#recreateMetaData([{ changeName: 'content-length', oldValue, newValue }]);
+                    }
+                    break;
+                }
+                case 'headerval':
+                    this.#headerval = this.getHeaderValTypes() ?? new Map;
+                    break;
+                case "open": {
+                    const details = this.shadowRoot.querySelector('details');
+                    if (details) {
+                        if (details.open !== (newValue !== null)) {
+                            details.open = newValue !== null;
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+    }
     updateHeaders() {
         const changes = [];
         for (const attribute of this.attributes) {
@@ -111,51 +219,6 @@ export class FakeFileFile extends FakeFileUIElement {
             }
         }
         this.#recreateMetaData(changes);
-    }
-    disconnectedCallback() {
-        this.#abortController?.abort();
-        this.#observer?.disconnect();
-    }
-    attributeChangedCallback(name, oldValue, newValue) {
-        if (this.shadowRoot) {
-            switch (name) {
-                case 'ff-name': {
-                    const summery = this.shadowRoot.querySelector('summary');
-                    if (summery)
-                        summery.innerText = `File: "${newValue || this.tagName}"`;
-                    break;
-                }
-                case 'lastmod': {
-                    if (newValue !== null) {
-                        newValue = (new Date(newValue)).toUTCString();
-                        this.#recreateMetaData([{ changeName: 'last-modified', oldValue, newValue }]);
-                    }
-                    break;
-                }
-                case 'headerval': {
-                    const temp = this.#headerval = new Map;
-                    if (newValue !== null) {
-                        newValue = newValue.replaceAll(/\s+/g, '');
-                        const types = newValue.toLowerCase().split(/,/g)
-                            .map(m => m.split(/=/g))
-                            .map(([key, val]) => ({ key, val }));
-                        for (const { key, val } of types) {
-                            temp.set(key, val);
-                        }
-                    }
-                    break;
-                }
-                case "open": {
-                    const details = this.shadowRoot.querySelector('details');
-                    if (details) {
-                        if (details.open !== (newValue !== null)) {
-                            details.open = newValue !== null;
-                        }
-                    }
-                    break;
-                }
-            }
-        }
     }
     #recreateMetaData(changes) {
         if (this.shadowRoot) {
@@ -200,7 +263,8 @@ export class FakeFileFile extends FakeFileUIElement {
                         throw new TypeError('InternalError');
                     }
                     if (change.newValue) {
-                        valElement.innerText = this.#normalizeValueString(change.changeName, change.newValue);
+                        const span = this.#normalizeValueString(change.changeName, change.newValue);
+                        valElement.replaceChildren(span);
                         keyElement.innerText = uppercaseAfterHyphen(change.changeName);
                         changesToMake.push(elements[change.changeName]);
                     }
@@ -211,46 +275,34 @@ export class FakeFileFile extends FakeFileUIElement {
     }
     #normalizeValueString(name, value) {
         switch (name) {
-            case "content-length":
-                return cbyte(+value);
-            case "last-modified":
-                return (new Date(value)).toUTCString();
+            case "content-length": {
+                const innerText = cbyte(+value);
+                return Object.assign(this.ownerDocument.createElement('span'), { innerText });
+            }
+            case "last-modified": {
+                const d = new Date(value), dateTime = d.toISOString(), innerText = d.toUTCString();
+                return Object.assign(this.ownerDocument.createElement('time'), { dateTime, innerText });
+            }
         }
         const type = this.#headerval.get(name.toLowerCase().replace(/^headerset-/i, ''));
-        switch (type) {
-            case "date": {
-                const timeValue = new Date(value);
-                return timeValue.toUTCString();
-            }
-            case "time": {
-                const timeValue = new Date(value);
-                return timeValue.toTimeString();
-            }
-            case "isodatetime": {
-                const timeValue = new Date(value);
-                if (isValidDate(timeValue)) {
-                    return timeValue.toISOString();
-                }
-                else
-                    return value;
-            }
-            case "bytes":
-                return cbyte(+value);
-            default:
-                return value;
-        }
+        // return stringtoType(type, value).string as string;
+        const result = stringtoType(type, value);
+        let span, innerText = result.string, dateTime = result.timeValue?.toISOString();
+        if (result.type === "time")
+            span = Object.assign(this.ownerDocument.createElement('time'), { dateTime, innerText });
+        else
+            span = Object.assign(this.ownerDocument.createElement('span'), { innerText });
+        return span;
     }
     set bytesize(value) {
         if (value === null) {
             this.removeAttribute('bytesize');
         }
-        else {
-            if (Number.isSafeInteger(value)) {
-                this.setAttribute('bytesize', String(value));
-            }
-            else
-                throw RangeError(`${value} is not a valid bytesize=""`);
+        else if (Number.isSafeInteger(value)) {
+            this.setAttribute('bytesize', String(value));
         }
+        else
+            throw RangeError(`${value} is not a valid bytesize=""`);
     }
     get bytesize() {
         return this.getAttribute('ff-name');
@@ -275,6 +327,45 @@ export class FakeFileFile extends FakeFileUIElement {
     get open() {
         return this.getAttribute('open');
     }
+    set headerVal(value) {
+        if (value === null)
+            this.removeAttribute('headerVal');
+        else
+            this.setAttribute('headerVal', value);
+    }
+    get headerVal() {
+        return this.getAttribute('headerVal');
+    }
+    setHeaderValType(key, type, overwrite = false) {
+        return this.setHeaderValTypes((new Map).set(key, type), overwrite);
+    }
+    setHeaderValTypes(values, overwrite = false) {
+        const result = [], regexp = /^[a-z\\-_0-9]+$/i;
+        const array = [...this.#headerval];
+        if (overwrite)
+            array.length = 0;
+        for (const [key, val] of array.concat([...values])) {
+            if (regexp.test(key) || regexp.test(val)) {
+                result.push(`${key}=${val}`);
+            } // else {console.warn('warning setting: key =', key, '; val =', val);}
+        }
+        this.headerVal = result.join();
+        return this;
+    }
+    getHeaderValTypes() {
+        const temporary = this.headerVal?.replaceAll(/\s+/g, '');
+        if (temporary === undefined)
+            return null;
+        const result = new Map;
+        const types = temporary
+            .toLowerCase().split(/,/g)
+            .map(m => m.split(/=/g))
+            .map(([key, val]) => ({ key, val }));
+        for (const { key, val } of types) {
+            result.set(key, val);
+        }
+        return result;
+    }
     set lastMod(value) {
         if (value === null) {
             this.removeAttribute('lastmod');
@@ -291,25 +382,34 @@ export class FakeFileFile extends FakeFileUIElement {
         return new Date(dt);
     }
     setHeader(name, value) {
-        name = `headerset-${name}`;
+        name = `${name}`;
+        const headersetName = `headerset-${name}`;
         if (value === null) {
-            this.removeAttribute(name);
+            this.removeAttribute(headersetName);
             return this;
         }
         if (value instanceof Date) {
-            value = value.toUTCString();
+            value = value.toISOString();
+            const overwrite = !this.getHeaderValTypes()?.get(name);
+            if (overwrite) {
+                this.setHeaderValType(name, 'datetime-global');
+            }
         }
-        this.setAttribute(name, `${value}`);
+        this.setAttribute(headersetName, `${value}`);
         return this;
-    }
-    getHeader(name) {
-        return this.getAttribute(name);
     }
     setHeaders(keyValues) {
         for (const [key, value] of (Object.entries(keyValues))) {
             this.setHeader(camelToKebab(key), value);
         }
         return this;
+    }
+    getHeader(name) {
+        name = `${name}`;
+        const headersetName = `headerset-${name}`;
+        const value = this.getAttribute(headersetName);
+        const type = this.#headerval.get(name);
+        return stringtoType(type, value, true).string;
     }
     getAllHeaders() {
         const constructor = this.constructor, result = new Map;
@@ -520,7 +620,5 @@ export function kebabToCamel(str) {
     return String(str).replace(/-([a-z])/g, (_, c) => c.toUpperCase());
 }
 export function camelToKebab(str) {
-    return String(str)
-        .replace(/([A-Z])/g, '-$1')
-        .toLowerCase();
+    return String(str).replace(/([A-Z])/g, '-$1').toLowerCase().replace(/^-+/, '');
 }

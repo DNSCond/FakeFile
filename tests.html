@@ -3,10 +3,9 @@
 <style>
 </style>
 <body>
-<ff-d ff-name="FakeFile">
-    <!--<ff-f ff-name="my file" lastmod="2025-10-23T12:08:13Z"
-    ></ff-f>-->
-    <ff-f ff-name="my other file" bytesize="500"></ff-f>
+<ff-d ff-name=FakeFile isexpanded>
+    <ff-f headerval=isodatetime=isodatetime,datetime-global=datetime-global,datetime-local=datetime-local,date=date,time=time,bytes=bytes
+          ff-name="my file" lastmod="2025-10-23T12:08:13Z" open></ff-f>
 </ff-d>
 <button onclick=document.querySelector('ff-f').setAttribute('headerset-makerid','h') type=button>headerset-makerid
 </button>
@@ -15,11 +14,21 @@
 
     {
         const pre = document.createElement('pre');
-        pre.innerText = FakeFileFile.toString();//document.documentElement.outerHTML;
+        pre.innerText = FakeFileFile.toString();
         const ff = document.querySelector('ff-f');
+        ff.bytesize = (new TextEncoder).encode(pre.innerText).length;
+        const date = new Date('2024-07-16T12:34:56.789Z');
         pre.style.margin = '0';
         ff.lastMod = new Date;
         ff.append(pre);
+        ff.setHeaders({
+            isodatetime: date,
+            'datetime-global': date,
+            'datetime-local': date,
+            time: date, date,
+            bytes: +date,
+        });
+        console.log(ff.getHeaderValTypes());
     }
 </script>
 </body>
