@@ -2,11 +2,28 @@
 var _a;
 export class FakeFileUIElement extends HTMLElement {
 }
+/*
+about types:
+
+the default type is string, so it can be omitted.
+
+write a string like "key1=type1,key2=type2,key3=type3", case-insensitive,
+whitespace ignored "key1 = type1, key2 = type2, key3 = type3".
+
+keys must be entered without the "headerset-*" prefix
+
+- isodatetime: write a isoString, formatted like Date.prototype.toISOString (or whatever you put in if its invalid)
+- date: write a isoString, formatted like Date.prototype.toUTCString
+- time: write a isoString, formatted like Date.prototype.toTimeString
+- bytes: write a number representing bytes, then it formats for humans
+
+*/
 export class FakeFileFile extends FakeFileUIElement {
-    #observer = new MutationObserver(change => this.#attributeChangedCallback(change));
+    #observer;
     #abortController;
+    #headerval = new Map;
     static get observedAttributes() {
-        return ['ff-name', 'lastmod']; //, 'bytesize'
+        return ['ff-name', 'lastmod', 'open', 'bytesize', 'headerval'];
     }
     constructor() {
         super();
@@ -21,7 +38,6 @@ export class FakeFileFile extends FakeFileUIElement {
         div.className = 'content';
         div.append(Object.assign(document.createElement('slot'), { innerHTML: '<span style=font-style:italic>empty file</span>' }));
         details.append(summary, head, div);
-        details.open = true;
         this.attachShadow({ mode: 'open' }).append(Object.assign(document.createElement('style'), {
             innerText: `:host{font-family:monospace}
             details {
@@ -38,12 +54,18 @@ export class FakeFileFile extends FakeFileUIElement {
                 content: ": ";
             }`.replaceAll(/\s+/g, ' '),
         }), details);
-        this.#observer.observe(this, { attributes: true, attributeOldValue: true });
     }
     connectedCallback() {
         this.#abortController?.abort();
-        (this.#abortController = new AbortController);
+        const { signal } = (this.#abortController = new AbortController);
         const metadata = this.shadowRoot?.querySelector('.metadata');
+        this.#observer = new MutationObserver(change => this.#attributeChangedCallback(change));
+        this.#observer.observe(this, { attributes: true, attributeOldValue: true });
+        this.shadowRoot.querySelector('details').addEventListener(
+        // @ts-ignore
+        'toggle', (event) => {
+            this.open = (event.newState === 'open');
+        }, { signal });
         if (metadata) {
             metadata.replaceChildren();
             this.updateHeaders();
@@ -64,7 +86,7 @@ export class FakeFileFile extends FakeFileUIElement {
                 switch (changeName) {
                     case "lastmod": {
                         const changeName = "last-modified";
-                        newValue = (new Date(newValue)).toUTCString();
+                        newValue = (new Date(newValue)).toISOString();
                         changes.push({ changeName, oldValue, newValue });
                         break;
                     }
@@ -88,11 +110,11 @@ export class FakeFileFile extends FakeFileUIElement {
                 changes.push({ changeName, oldValue, newValue });
             }
         }
-        console.log(changes);
         this.#recreateMetaData(changes);
     }
     disconnectedCallback() {
         this.#abortController?.abort();
+        this.#observer?.disconnect();
     }
     attributeChangedCallback(name, oldValue, newValue) {
         if (this.shadowRoot) {
@@ -107,6 +129,28 @@ export class FakeFileFile extends FakeFileUIElement {
                     if (newValue !== null) {
                         newValue = (new Date(newValue)).toUTCString();
                         this.#recreateMetaData([{ changeName: 'last-modified', oldValue, newValue }]);
+                    }
+                    break;
+                }
+                case 'headerval': {
+                    const temp = this.#headerval = new Map;
+                    if (newValue !== null) {
+                        newValue = newValue.replaceAll(/\s+/g, '');
+                        const types = newValue.toLowerCase().split(/,/g)
+                            .map(m => m.split(/=/g))
+                            .map(([key, val]) => ({ key, val }));
+                        for (const { key, val } of types) {
+                            temp.set(key, val);
+                        }
+                    }
+                    break;
+                }
+                case "open": {
+                    const details = this.shadowRoot.querySelector('details');
+                    if (details) {
+                        if (details.open !== (newValue !== null)) {
+                            details.open = newValue !== null;
+                        }
                     }
                     break;
                 }
@@ -156,7 +200,7 @@ export class FakeFileFile extends FakeFileUIElement {
                         throw new TypeError('InternalError');
                     }
                     if (change.newValue) {
-                        valElement.innerText = change.newValue;
+                        valElement.innerText = this.#normalizeValueString(change.changeName, change.newValue);
                         keyElement.innerText = uppercaseAfterHyphen(change.changeName);
                         changesToMake.push(elements[change.changeName]);
                     }
@@ -165,73 +209,72 @@ export class FakeFileFile extends FakeFileUIElement {
             metadata.append(...changesToMake);
         }
     }
-    /*#recreateMetaData(changes: changes[]): void {
-        if (this.shadowRoot) {
-            const metadata = this.shadowRoot.querySelector('.metadata');
-            if (!metadata) throw new TypeError('metadata is null');
-            const elements: { [key: string]: { keyElement?: HTMLElement, valElement?: HTMLElement } } = {},
-                missing: string[] = [], missingV: string[] = [],
-                changeNames = changes.map(m => m.changeName);
-            for (const child of metadata.children) {
-                const keyName = (child as HTMLElement).dataset?.keyName;
-                if (keyName !== undefined) {
-                    elements[keyName as string] ??= {};
-                    if (changeNames.includes(keyName)) {
-                        elements[keyName as string].keyElement = (child as HTMLElement);
-                    } else {
-                        missing.push(keyName as string);
-                    }
-                }
-                const valName = (child as HTMLElement).dataset?.valName;
-                if (valName !== undefined) {
-                    elements[valName as string] ??= {};
-                    if (changeNames.includes(valName)) {
-                        elements[valName as string].valElement = (child as HTMLElement);
-                    } else {
-                        missingV.push(valName as string);
-                    }
-                }
-            }
-            for (const changeName of changeNames) {
-                if (!(changeName in elements) && !missing.includes(changeName) && !missingV.includes(changeName)) {
-                    missing?.push(changeName);
-                    missingV.push(changeName);
-                }
-            }
-            for (const string of (new Set(missing.concat(missingV))).values()) {
-                const obj = elements[string] ??= {};
-                const keyElement = this.ownerDocument.createElement('dt');
-                const valElement = this.ownerDocument.createElement('dd');
-                obj.keyElement ??= keyElement;
-                obj.valElement ??= valElement;
-                // if (elements[string]) {
-                //     const keyElement = this.ownerDocument.createElement('dt');
-                //     elements[string] = {keyElement};
-                // }
-                // if (!elements[string]) {
-                //     const valElement = this.ownerDocument.createElement('dd');
-                //     elements[string] = {valElement};
-                // }
-            }
-            const changesToMake: HTMLElement[] = [];
-            for (const change of changes) {
-                if (elements[change.changeName]) {
-                    const {keyElement, valElement} = elements[change.changeName];
-                    if (change.newValue === null) {
-                        keyElement?.remove();
-                        valElement?.remove();
-                    }
-                    if (keyElement === undefined || valElement === undefined) throw new TypeError('InternalError');
-                    if (change.newValue) {
-                        valElement.innerText = change.newValue;
-                        keyElement.innerText = change.changeName;
-                        changesToMake.push(keyElement, valElement);
-                    }
-                }
-            }
-            metadata.append(...changesToMake);
+    #normalizeValueString(name, value) {
+        switch (name) {
+            case "content-length":
+                return cbyte(+value);
+            case "last-modified":
+                return (new Date(value)).toUTCString();
         }
-    }*/
+        const type = this.#headerval.get(name.toLowerCase().replace(/^headerset-/i, ''));
+        switch (type) {
+            case "date": {
+                const timeValue = new Date(value);
+                return timeValue.toUTCString();
+            }
+            case "time": {
+                const timeValue = new Date(value);
+                return timeValue.toTimeString();
+            }
+            case "isodatetime": {
+                const timeValue = new Date(value);
+                if (isValidDate(timeValue)) {
+                    return timeValue.toISOString();
+                }
+                else
+                    return value;
+            }
+            case "bytes":
+                return cbyte(+value);
+            default:
+                return value;
+        }
+    }
+    set bytesize(value) {
+        if (value === null) {
+            this.removeAttribute('bytesize');
+        }
+        else {
+            if (Number.isSafeInteger(value)) {
+                this.setAttribute('bytesize', String(value));
+            }
+            else
+                throw RangeError(`${value} is not a valid bytesize=""`);
+        }
+    }
+    get bytesize() {
+        return this.getAttribute('ff-name');
+    }
+    set fileName(value) {
+        if (value === null)
+            this.removeAttribute('ff-name');
+        else
+            this.setAttribute('ff-name', value);
+    }
+    get fileName() {
+        return this.getAttribute('ff-name');
+    }
+    set open(value) {
+        if (value || value === '') {
+            this.setAttribute('open', value === true ? '' : value);
+        }
+        else {
+            this.removeAttribute('open');
+        }
+    }
+    get open() {
+        return this.getAttribute('open');
+    }
     set lastMod(value) {
         if (value === null) {
             this.removeAttribute('lastmod');
@@ -251,18 +294,22 @@ export class FakeFileFile extends FakeFileUIElement {
         name = `headerset-${name}`;
         if (value === null) {
             this.removeAttribute(name);
-            return;
+            return this;
         }
-        if (typeof value === 'object' || typeof value === 'function') {
-            if ('toUTCString' in value) {
-                value = value.toUTCString();
-            }
+        if (value instanceof Date) {
+            value = value.toUTCString();
         }
         this.setAttribute(name, `${value}`);
         return this;
     }
     getHeader(name) {
         return this.getAttribute(name);
+    }
+    setHeaders(keyValues) {
+        for (const [key, value] of (Object.entries(keyValues))) {
+            this.setHeader(camelToKebab(key), value);
+        }
+        return this;
     }
     getAllHeaders() {
         const constructor = this.constructor, result = new Map;
@@ -277,6 +324,7 @@ export class FakeFileFile extends FakeFileUIElement {
 }
 export class FakeFileDirectory extends FakeFileUIElement {
     #registered = [];
+    #abortController;
     #observer;
     static get observedAttributes() {
         return ['ff-name', 'isexpanded'];
@@ -297,14 +345,49 @@ export class FakeFileDirectory extends FakeFileUIElement {
                 padding: 0.5em;
             }li{margin-top:0.5em;
             margin-bottom:0.5em;}
-            ul{margin-bottom:0;}`.replaceAll(/\s+/g, ' ')
+            ul{margin-bottom:0;
+            list-style-type:none;
+            padding-left: 1ch;
+            }`.replaceAll(/\s+/g, ' '),
         }), details);
     }
     connectedCallback() {
         this.#updateRegistered();
         // watch for child changes
         this.#observer = new MutationObserver(() => this.#updateRegistered());
+        const { signal } = (this.#abortController = new AbortController);
         this.#observer.observe(this, { childList: true });
+        this.#updateRegistered();
+        this.shadowRoot.querySelector('details').addEventListener(
+        // @ts-ignore
+        'toggle', (event) => {
+            this.isexpanded = (event.newState === 'open');
+        }, { signal });
+    }
+    attributeChangedCallback(name, _oldValue, newValue) {
+        if (this.shadowRoot) {
+            switch (name) {
+                case 'ff-name': {
+                    const summery = this.shadowRoot.querySelector('summary');
+                    if (summery)
+                        summery.innerText = `Directory: "${newValue || this.tagName}"`;
+                    break;
+                }
+                case "isexpanded": {
+                    const details = this.shadowRoot.querySelector('details');
+                    if (details) {
+                        if (details.open !== (newValue !== null)) {
+                            details.open = newValue !== null;
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+    }
+    disconnectedCallback() {
+        this.#abortController?.abort();
+        this.#observer?.disconnect();
     }
     /**
      * Returns an up-to-date array of immediate child FakeFiles and Directories.
@@ -332,24 +415,6 @@ export class FakeFileDirectory extends FakeFileUIElement {
         });
         this.#updateSlottedItems();
     }
-    attributeChangedCallback(name, _oldValue, newValue) {
-        if (this.shadowRoot) {
-            switch (name) {
-                case 'ff-name': {
-                    const summery = this.shadowRoot.querySelector('summary');
-                    if (summery)
-                        summery.innerText = `Directory: "${newValue || this.tagName}"`;
-                    break;
-                }
-                case "isexpanded": {
-                    const details = this.shadowRoot.querySelector('details');
-                    if (details)
-                        details.open = newValue !== null;
-                    break;
-                }
-            }
-        }
-    }
     #updateSlottedItems() {
         if (this.shadowRoot) {
             const children = this.childrenEntries.map(child => {
@@ -362,17 +427,49 @@ export class FakeFileDirectory extends FakeFileUIElement {
             this.shadowRoot.querySelector('ul').replaceChildren(...children);
         }
     }
-    disconnectedCallback() {
-        this.#observer?.disconnect();
+    set fileName(value) {
+        if (value === null)
+            this.removeAttribute('ff-name');
+        else
+            this.setAttribute('ff-name', value);
+    }
+    get fileName() {
+        return this.getAttribute('ff-name');
+    }
+    set isexpanded(value) {
+        if (value || value === '') {
+            this.setAttribute('isexpanded', value === true ? '' : value);
+        }
+        else {
+            this.removeAttribute('isexpanded');
+        }
+    }
+    get isexpanded() {
+        return this.getAttribute('isexpanded');
     }
     get lastModified() {
-        const dates = Array.from(this.children, m => m.getAttribute('lastmod')).map(m => m ? new Date(m) : null);
-        return findLatestDate(dates);
+        const dates = Array.from(this.children, m => m.getAttribute('lastmod'));
+        return findLatestDate(dates.map(m => m ? new Date(m) : null));
     }
 }
 _a = FakeFileDirectory;
 customElements.define('ff-f', FakeFileFile);
 customElements.define('ff-d', FakeFileDirectory);
+export function cbyte(bytesize) {
+    const units = Array("bytes", "KB", "MB", "GB", "TB");
+    let i = 0;
+    bytesize = +bytesize;
+    if (!Number.isFinite(bytesize))
+        throw new TypeError('bytesize resulted into a non finite number');
+    while (bytesize >= 1024) {
+        bytesize = bytesize / 1024;
+        if (units[++i] === undefined) {
+            i--;
+            break;
+        }
+    }
+    return `${bytesize.toFixed(2).replace(/\.?0*$/, '')} ${units[i]}`;
+}
 export function joinArray(array, seperator, replacer, isCallback = false) {
     const a = Array.from(array, replacer ?? (m => m)), result = [];
     let index = 0;
@@ -387,14 +484,6 @@ export function joinArray(array, seperator, replacer, isCallback = false) {
     if (result.length > 2)
         result.length = result.length - 1;
     return result;
-}
-export function uppercaseAfterHyphen(str) {
-    return String(str).split('').map((char, i, arr) => {
-        if (i === 0 || arr[i - 1] === '-') {
-            return char.toUpperCase();
-        }
-        return char;
-    }).join('');
 }
 export const isValidDate = function (date) {
     return !isNaN(date);
@@ -418,4 +507,20 @@ export function findFirstDate(array, toDate = m => m) {
         return asDate;
     else
         return null;
+}
+export function uppercaseAfterHyphen(str) {
+    return String(str).split('').map((char, i, arr) => {
+        if (i === 0 || arr[i - 1] === '-') {
+            return char.toUpperCase();
+        }
+        return char;
+    }).join('');
+}
+export function kebabToCamel(str) {
+    return String(str).replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+}
+export function camelToKebab(str) {
+    return String(str)
+        .replace(/([A-Z])/g, '-$1')
+        .toLowerCase();
 }
