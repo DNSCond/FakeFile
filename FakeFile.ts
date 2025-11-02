@@ -1,5 +1,14 @@
 "use strict"; // FakeFilesUI
+const {promise, resolve} = Promise.withResolvers<unknown>();
+
 export class FakeFileUIElement extends HTMLElement {
+    #_onDomInserted = Promise.withResolvers<void>()
+
+    constructor() {
+        super();
+        Promise.all([promise, this.#_onDomInserted]).then(() => this?._whenAllFFElementsDefined());
+    }
+
     // https://github.com/DNSCond/dnscond.github.io
     getFullPath(): string[] {
         let current: HTMLElement | null = this, result = [this.fileName || current.tagName];
@@ -9,6 +18,10 @@ export class FakeFileUIElement extends HTMLElement {
         return result.reverse();
     }
 
+    getPath(): string {
+        return this.getFullPath().join('/');
+    }
+
     set fileName(value: string | null) {
         if (value === null) this.removeAttribute('ff-name');
         else this.setAttribute('ff-name', value);
@@ -16,6 +29,13 @@ export class FakeFileUIElement extends HTMLElement {
 
     get fileName(): string | null {
         return this.getAttribute('ff-name');
+    }
+
+    connectedCallback(): void {
+        this.#_onDomInserted.resolve();
+    }
+
+    _whenAllFFElementsDefined(): void {
     }
 }
 
@@ -142,6 +162,7 @@ export class FakeFileFile extends FakeFileUIElement {
 
 
     connectedCallback(): void {
+        super.connectedCallback();
         this.#abortController?.abort();
         const {signal} = (this.#abortController = new AbortController);
         const metadata = this.shadowRoot?.querySelector('.metadata');
@@ -447,10 +468,13 @@ export class FakeFileFile extends FakeFileUIElement {
         }
         return result;
     }
+
+    _whenAllFFElementsDefined(): void {
+    }
 }
 
 export class FakeFileDirectory extends FakeFileUIElement {
-    #registered: (FakeFileFile | FakeFileDirectory)[] = [];
+    #registered: FakeFileUIElement[] = [];
     #abortController?: AbortController;
     #observer?: MutationObserver;
 
@@ -482,12 +506,12 @@ export class FakeFileDirectory extends FakeFileUIElement {
     }
 
     connectedCallback() {
+        super.connectedCallback();
         this.#updateRegistered();
         // watch for child changes
         this.#observer = new MutationObserver(() => this.#updateRegistered());
         const {signal} = (this.#abortController = new AbortController);
         this.#observer.observe(this, {childList: true});
-        this.#updateRegistered();
         (this.shadowRoot!.querySelector('details') as HTMLDetailsElement)!.addEventListener(
             // @ts-ignore
             'toggle', (event: ToggleEvent) => {
@@ -524,7 +548,7 @@ export class FakeFileDirectory extends FakeFileUIElement {
     /**
      * Returns an up-to-date array of immediate child FakeFiles and Directories.
      */
-    get childrenEntries(): (FakeFileFile | FakeFileDirectory)[] {
+    get childrenEntries(): FakeFileUIElement[] {
         return [...this.#registered];
     }
 
@@ -534,13 +558,13 @@ export class FakeFileDirectory extends FakeFileUIElement {
         // .filter((el): el is FakeFileFile | FakeFileDirectory =>
         // el instanceof FakeFileFile || el instanceof FakeFileDirectory);
         const children = (this.#registered = Array.from(this.children, child => {
-            if (child instanceof FakeFileFile || child instanceof FakeFileDirectory) {
+            if (child instanceof FakeFileUIElement) {
                 return child;
             } else {
                 child.removeAttribute('slot');
                 return null;
             }
-        }).filter(m => m !== null) as (FakeFileFile | FakeFileDirectory)[]);
+        }).filter(m => m !== null) as FakeFileUIElement []);
         children.forEach(function (
             each, index) {
             const slotname = `FakeFile-${index++}`;
@@ -579,10 +603,15 @@ export class FakeFileDirectory extends FakeFileUIElement {
         const dates: (string | null)[] = Array.from(this.children, m => m.getAttribute('lastmod'));
         return findLatestDate(dates.map(m => m ? new Date(m) : null));
     }
+
+    _whenAllFFElementsDefined(): void {
+        this.#updateRegistered();
+    }
 }
 
-customElements.define('ff-f', FakeFileFile);
 customElements.define('ff-d', FakeFileDirectory);
+customElements.define('ff-f', FakeFileFile);
+Promise.all([customElements.whenDefined('ff-d'), customElements.whenDefined('ff-f')]).then(resolve);
 
 export function cbyte(bytesize: number): string {
     const units = Array("bytes", "KB", "MB", "GB", "TB");

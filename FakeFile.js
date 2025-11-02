@@ -1,6 +1,11 @@
 "use strict"; // FakeFilesUI
-var _a;
+const { promise, resolve } = Promise.withResolvers();
 export class FakeFileUIElement extends HTMLElement {
+    #_onDomInserted = Promise.withResolvers();
+    constructor() {
+        super();
+        Promise.all([promise, this.#_onDomInserted]).then(() => this?._whenAllFFElementsDefined());
+    }
     // https://github.com/DNSCond/dnscond.github.io
     getFullPath() {
         let current = this, result = [this.fileName || current.tagName];
@@ -8,6 +13,9 @@ export class FakeFileUIElement extends HTMLElement {
             result.push(current.fileName || current.tagName);
         }
         return result.reverse();
+    }
+    getPath() {
+        return this.getFullPath().join('/');
     }
     set fileName(value) {
         if (value === null)
@@ -17,6 +25,11 @@ export class FakeFileUIElement extends HTMLElement {
     }
     get fileName() {
         return this.getAttribute('ff-name');
+    }
+    connectedCallback() {
+        this.#_onDomInserted.resolve();
+    }
+    _whenAllFFElementsDefined() {
     }
 }
 /**
@@ -140,6 +153,7 @@ export class FakeFileFile extends FakeFileUIElement {
         }), details);
     }
     connectedCallback() {
+        super.connectedCallback();
         this.#abortController?.abort();
         const { signal } = (this.#abortController = new AbortController);
         const metadata = this.shadowRoot?.querySelector('.metadata');
@@ -436,6 +450,8 @@ export class FakeFileFile extends FakeFileUIElement {
         }
         return result;
     }
+    _whenAllFFElementsDefined() {
+    }
 }
 export class FakeFileDirectory extends FakeFileUIElement {
     #registered = [];
@@ -467,12 +483,12 @@ export class FakeFileDirectory extends FakeFileUIElement {
         }), details);
     }
     connectedCallback() {
+        super.connectedCallback();
         this.#updateRegistered();
         // watch for child changes
         this.#observer = new MutationObserver(() => this.#updateRegistered());
         const { signal } = (this.#abortController = new AbortController);
         this.#observer.observe(this, { childList: true });
-        this.#updateRegistered();
         this.shadowRoot.querySelector('details').addEventListener(
         // @ts-ignore
         'toggle', (event) => {
@@ -516,7 +532,7 @@ export class FakeFileDirectory extends FakeFileUIElement {
         // .filter((el): el is FakeFileFile | FakeFileDirectory =>
         // el instanceof FakeFileFile || el instanceof FakeFileDirectory);
         const children = (this.#registered = Array.from(this.children, child => {
-            if (child instanceof FakeFileFile || child instanceof _a) {
+            if (child instanceof FakeFileUIElement) {
                 return child;
             }
             else {
@@ -557,10 +573,13 @@ export class FakeFileDirectory extends FakeFileUIElement {
         const dates = Array.from(this.children, m => m.getAttribute('lastmod'));
         return findLatestDate(dates.map(m => m ? new Date(m) : null));
     }
+    _whenAllFFElementsDefined() {
+        this.#updateRegistered();
+    }
 }
-_a = FakeFileDirectory;
-customElements.define('ff-f', FakeFileFile);
 customElements.define('ff-d', FakeFileDirectory);
+customElements.define('ff-f', FakeFileFile);
+Promise.all([customElements.whenDefined('ff-d'), customElements.whenDefined('ff-f')]).then(resolve);
 export function cbyte(bytesize) {
     const units = Array("bytes", "KB", "MB", "GB", "TB");
     let i = 0;
