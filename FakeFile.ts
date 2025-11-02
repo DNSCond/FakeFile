@@ -37,6 +37,17 @@ export class FakeFileUIElement extends HTMLElement {
 
     _whenAllFFElementsDefined(): void {
     }
+
+    get bytesize(): number {
+        return -1;
+    }
+
+    get bytesizeFormatted(): string {
+        const {bytesize} = this;
+        if (bytesize > 0)
+            return cbyte(bytesize);
+        return "NaN bytes";
+    }
 }
 
 export type changes = { changeName: string, oldValue?: string | null | undefined, newValue: string | null };
@@ -353,8 +364,8 @@ export class FakeFileFile extends FakeFileUIElement {
         } else throw RangeError(`${value} is not a valid bytesize=""`);
     }
 
-    get bytesize(): string | null {
-        return this.getAttribute('ff-name');
+    get bytesize(): number {
+        return +this.getAttribute('bytesize')!;
     }
 
     set open(value: boolean | string) {
@@ -604,6 +615,10 @@ export class FakeFileDirectory extends FakeFileUIElement {
     get lastModified(): Date | null {
         const dates: (string | null)[] = Array.from(this.children, m => m.getAttribute('lastmod'));
         return findLatestDate(dates.map(m => m ? new Date(m) : null));
+    }
+
+    get bytesize(): number {
+        return this.childrenEntries.map(m => m.bytesize).reduce((prev, curr) => curr + prev, 0);
     }
 
     _whenAllFFElementsDefined(): void {
