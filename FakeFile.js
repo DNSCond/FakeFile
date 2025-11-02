@@ -137,7 +137,8 @@ export class FakeFileFile extends FakeFileUIElement {
         details.append(summary, head, div);
         this.attachShadow({ mode: 'open' }).append(Object.assign(document.createElement('style'), {
             innerText: `:host{font-family:monospace}
-            details {
+            details {color:black;/* File */
+            background-color:#E7F4FD/*#C9EAFF*/;
                 border: solid black 2px;
                 border-right: none;
                 padding: 0.5em;
@@ -470,7 +471,8 @@ export class FakeFileDirectory extends FakeFileUIElement {
         details.append(summary, list);
         this.attachShadow({ mode: 'open' }).append(Object.assign(document.createElement('style'), {
             innerText: `:host{font-family:monospace}
-            details {
+            details {color:black;/* Directory */
+            background-color:#FFE8BA;
                 border: solid black 2px;
                 border-right: none;
                 padding: 0.5em;
