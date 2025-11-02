@@ -1,6 +1,23 @@
 "use strict"; // FakeFilesUI
 var _a;
 export class FakeFileUIElement extends HTMLElement {
+    // https://github.com/DNSCond/dnscond.github.io
+    getFullPath() {
+        let current = this, result = [this.fileName || current.tagName];
+        while ((current = current.parentElement) instanceof FakeFileUIElement) {
+            result.push(current.fileName || current.tagName);
+        }
+        return result.reverse();
+    }
+    set fileName(value) {
+        if (value === null)
+            this.removeAttribute('ff-name');
+        else
+            this.setAttribute('ff-name', value);
+    }
+    get fileName() {
+        return this.getAttribute('ff-name');
+    }
 }
 /**
  * about types:
@@ -314,15 +331,6 @@ export class FakeFileFile extends FakeFileUIElement {
     get bytesize() {
         return this.getAttribute('ff-name');
     }
-    set fileName(value) {
-        if (value === null)
-            this.removeAttribute('ff-name');
-        else
-            this.setAttribute('ff-name', value);
-    }
-    get fileName() {
-        return this.getAttribute('ff-name');
-    }
     set open(value) {
         if (value || value === '') {
             this.setAttribute('open', value === true ? '' : value);
@@ -533,15 +541,6 @@ export class FakeFileDirectory extends FakeFileUIElement {
             });
             this.shadowRoot.querySelector('ul').replaceChildren(...children);
         }
-    }
-    set fileName(value) {
-        if (value === null)
-            this.removeAttribute('ff-name');
-        else
-            this.setAttribute('ff-name', value);
-    }
-    get fileName() {
-        return this.getAttribute('ff-name');
     }
     set isexpanded(value) {
         if (value || value === '') {
