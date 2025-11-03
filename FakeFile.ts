@@ -39,7 +39,7 @@ export class FakeFileUIElement extends HTMLElement {
     }
 
     get bytesize(): number {
-        return -1;
+        return NaN;
     }
 
     get bytesizeFormatted(): string {
@@ -47,6 +47,13 @@ export class FakeFileUIElement extends HTMLElement {
         if (bytesize > 0)
             return cbyte(bytesize);
         return "NaN bytes";
+    }
+
+    /**
+     * returns an invalid date, inherit from it please.
+     */
+    get lastMod(): Date | null {
+        return new Date(NaN);
     }
 }
 
@@ -376,8 +383,8 @@ export class FakeFileFile extends FakeFileUIElement {
         }
     }
 
-    get open(): string | null {
-        return this.getAttribute('open');
+    get open(): boolean {
+        return this.hasAttribute('open');
     }
 
     set headerVal(value: string | null) {
@@ -394,7 +401,7 @@ export class FakeFileFile extends FakeFileUIElement {
     }
 
     setHeaderValTypes(values: Map<string, string>, overwrite: boolean = false): this {
-        const result = [], regexp = /^[a-z\\-_0-9]+$/i;
+        const result = [], regexp = /^[a-z\-_0-9]+$/i;
         const array = [...this.#headerval];
         if (overwrite) array.length = 0;
         for (const [key, val] of array.concat([...values])) {
@@ -608,13 +615,16 @@ export class FakeFileDirectory extends FakeFileUIElement {
         }
     }
 
-    get isexpanded(): string | null {
-        return this.getAttribute('isexpanded');
+    get isexpanded(): boolean {
+        return this.hasAttribute('isexpanded');
     }
 
     get lastModified(): Date | null {
-        const dates: (string | null)[] = Array.from(this.children, m => m.getAttribute('lastmod'));
-        return findLatestDate(dates.map(m => m ? new Date(m) : null));
+        return findLatestDate(this.childrenEntries.map(m => m.lastMod));
+    }
+
+    get lastMod(): Date | null {
+        return this.lastModified;
     }
 
     get bytesize(): number {
@@ -687,10 +697,7 @@ export function findFirstDate<T>(array: T[], toDate: (object: T, index: number) 
 
 export function uppercaseAfterHyphen(str: string): string {
     return String(str).split('').map((char, i, arr) => {
-        if (i === 0 || arr[i - 1] === '-') {
-            return char.toUpperCase();
-        }
-        return char;
+        if (i === 0 || arr[i - 1] === '-') return char.toUpperCase(); else return char;
     }).join('');
 }
 

@@ -32,13 +32,19 @@ export class FakeFileUIElement extends HTMLElement {
     _whenAllFFElementsDefined() {
     }
     get bytesize() {
-        return -1;
+        return NaN;
     }
     get bytesizeFormatted() {
         const { bytesize } = this;
         if (bytesize > 0)
             return cbyte(bytesize);
         return "NaN bytes";
+    }
+    /**
+     * returns an invalid date, inherit from it please.
+     */
+    get lastMod() {
+        return new Date(NaN);
     }
 }
 /**
@@ -364,7 +370,7 @@ export class FakeFileFile extends FakeFileUIElement {
         }
     }
     get open() {
-        return this.getAttribute('open');
+        return this.hasAttribute('open');
     }
     set headerVal(value) {
         if (value === null)
@@ -379,7 +385,7 @@ export class FakeFileFile extends FakeFileUIElement {
         return this.setHeaderValTypes((new Map).set(key, type), overwrite);
     }
     setHeaderValTypes(values, overwrite = false) {
-        const result = [], regexp = /^[a-z\\-_0-9]+$/i;
+        const result = [], regexp = /^[a-z\-_0-9]+$/i;
         const array = [...this.#headerval];
         if (overwrite)
             array.length = 0;
@@ -578,11 +584,13 @@ export class FakeFileDirectory extends FakeFileUIElement {
         }
     }
     get isexpanded() {
-        return this.getAttribute('isexpanded');
+        return this.hasAttribute('isexpanded');
     }
     get lastModified() {
-        const dates = Array.from(this.children, m => m.getAttribute('lastmod'));
-        return findLatestDate(dates.map(m => m ? new Date(m) : null));
+        return findLatestDate(this.childrenEntries.map(m => m.lastMod));
+    }
+    get lastMod() {
+        return this.lastModified;
     }
     get bytesize() {
         return this.childrenEntries.map(m => m.bytesize).reduce((prev, curr) => curr + prev, 0);
@@ -649,10 +657,10 @@ export function findFirstDate(array, toDate = m => m) {
 }
 export function uppercaseAfterHyphen(str) {
     return String(str).split('').map((char, i, arr) => {
-        if (i === 0 || arr[i - 1] === '-') {
+        if (i === 0 || arr[i - 1] === '-')
             return char.toUpperCase();
-        }
-        return char;
+        else
+            return char;
     }).join('');
 }
 export function kebabToCamel(str) {
