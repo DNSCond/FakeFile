@@ -1,5 +1,6 @@
 "use strict"; // FakeFilesUI
 const {promise, resolve} = Promise.withResolvers<unknown>();
+const colorRegExp = /^#?[a-f0-9]/i;
 
 export class FakeFileUIElement extends HTMLElement {
     #_onDomInserted = Promise.withResolvers<void>()
@@ -59,16 +60,17 @@ export class FakeFileUIElement extends HTMLElement {
     set backgroundColor(color: string | null) {
         if (color === null) {
             this.removeAttribute('fakefile-bgcolor');
-        } else if (typeof (color as unknown) === "string" && /^#?[a-f0-9]/i.test(color)) {
+        } else if (typeof (color as unknown) === "string" && colorRegExp.test(color)) {
             color = '#' + color.replace(/^#/, '');
             this.setAttribute('fakefile-bgcolor', color);
-        } else throw new TypeError('color must be a color in the hex color format');
+        } else
+            throw new TypeError('color must be a color in the hex color format');
     }
 
     get backgroundColor(): string | null | undefined {
         const color = this.getAttribute('fakefile-bgcolor');
         if (color === null) return null; else {
-            if (/^#?[a-f0-9]/i.test(color)) {
+            if (colorRegExp.test(color)) {
                 return color;
             } else return undefined;
         }
@@ -162,7 +164,7 @@ export class FakeFileFile extends FakeFileUIElement {
     #backgroundDefault = '#E7F4FD';/*#C9EAFF*/
 
     static get observedAttributes(): string[] {
-        return ['ff-name', 'lastmod', 'open', 'bytesize', 'headerval'];
+        return ['ff-name', 'lastmod', 'open', 'bytesize', 'headerval', 'fakefile-bgcolor'];
     }
 
     constructor() {
@@ -181,7 +183,7 @@ export class FakeFileFile extends FakeFileUIElement {
         details.append(summary, head, div);//
         const bgc = Object.assign(
             document.createElement('style'), {
-                innerText: `details{background-color:${this.#backgroundDefault}`,
+                innerText: `details{background-color:${this.#backgroundDefault}}`,
                 className: "background-color",
             });
         this.attachShadow({mode: 'open'}).append(Object.assign(document.createElement('style'), {
@@ -261,6 +263,17 @@ export class FakeFileFile extends FakeFileUIElement {
                     }
                     break;
                 }
+                case "fakefile-bgcolor": {
+                    const style = this.shadowRoot.querySelector('style.background-color') as HTMLStyleElement | null;
+                    if (style) {
+                        if (newValue && colorRegExp.test(newValue)) {
+                            style.innerText = `details{background-color:${newValue}}`;
+                        } else {
+                            style.innerText = `details{background-color:${this.#backgroundDefault}}`;
+                        }
+                    }
+                }
+                    break;
             }
         }
     }
@@ -588,6 +601,17 @@ export class FakeFileDirectory extends FakeFileUIElement {
                     }
                     break;
                 }
+                case "fakefile-bgcolor": {
+                    const style = this.shadowRoot.querySelector('style.background-color') as HTMLStyleElement | null;
+                    if (style) {
+                        if (newValue && colorRegExp.test(newValue)) {
+                            style.innerText = `details{background-color:${newValue}}`;
+                        } else {
+                            style.innerText = `details{background-color:${this.#backgroundDefault}}`;
+                        }
+                    }
+                }
+                    break;
             }
         }
     }
