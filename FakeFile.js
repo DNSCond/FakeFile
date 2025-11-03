@@ -1,5 +1,6 @@
 "use strict"; // FakeFilesUI
 const { promise, resolve } = Promise.withResolvers();
+const colorRegExp = /^#?[a-f0-9]/i;
 export class FakeFileUIElement extends HTMLElement {
     #_onDomInserted = Promise.withResolvers();
     constructor() {
@@ -50,7 +51,7 @@ export class FakeFileUIElement extends HTMLElement {
         if (color === null) {
             this.removeAttribute('fakefile-bgcolor');
         }
-        else if (typeof color === "string" && /^#?[a-f0-9]/i.test(color)) {
+        else if (typeof color === "string" && colorRegExp.test(color)) {
             color = '#' + color.replace(/^#/, '');
             this.setAttribute('fakefile-bgcolor', color);
         }
@@ -62,7 +63,7 @@ export class FakeFileUIElement extends HTMLElement {
         if (color === null)
             return null;
         else {
-            if (/^#?[a-f0-9]/i.test(color)) {
+            if (colorRegExp.test(color)) {
                 return color;
             }
             else
@@ -159,7 +160,7 @@ export class FakeFileFile extends FakeFileUIElement {
     #abortController;
     #backgroundDefault = '#E7F4FD'; /*#C9EAFF*/
     static get observedAttributes() {
-        return ['ff-name', 'lastmod', 'open', 'bytesize', 'headerval'];
+        return ['ff-name', 'lastmod', 'open', 'bytesize', 'headerval', 'fakefile-bgcolor'];
     }
     constructor() {
         super();
@@ -175,7 +176,7 @@ export class FakeFileFile extends FakeFileUIElement {
         div.append(Object.assign(document.createElement('slot'), { innerHTML: '<span style=font-style:italic>empty file</span>' }));
         details.append(summary, head, div); //
         const bgc = Object.assign(document.createElement('style'), {
-            innerText: `details{background-color:${this.#backgroundDefault}`,
+            innerText: `details{background-color:${this.#backgroundDefault}}`,
             className: "background-color",
         });
         this.attachShadow({ mode: 'open' }).append(Object.assign(document.createElement('style'), {
@@ -209,6 +210,10 @@ export class FakeFileFile extends FakeFileUIElement {
         'toggle', (event) => {
             this.open = (event.newState === 'open');
         }, { signal });
+        {
+            const style = this.shadowRoot.querySelector('style.background-color');
+            style.innerText = `details{background-color:${this.backgroundColor}}`;
+        }
         if (metadata) {
             metadata.replaceChildren();
             this.updateHeaders();
@@ -252,6 +257,19 @@ export class FakeFileFile extends FakeFileUIElement {
                     }
                     break;
                 }
+                case "fakefile-bgcolor":
+                    {
+                        const style = this.shadowRoot.querySelector('style.background-color');
+                        if (style) {
+                            if (newValue && colorRegExp.test(newValue)) {
+                                style.innerText = `details{background-color:${newValue}}`;
+                            }
+                            else {
+                                style.innerText = `details{background-color:${this.#backgroundDefault}}`;
+                            }
+                        }
+                    }
+                    break;
             }
         }
     }
@@ -545,6 +563,10 @@ export class FakeFileDirectory extends FakeFileUIElement {
         'toggle', (event) => {
             this.isexpanded = (event.newState === 'open');
         }, { signal });
+        {
+            const style = this.shadowRoot.querySelector('style.background-color');
+            style.innerText = `details{background-color:${this.backgroundColor}}`;
+        }
     }
     attributeChangedCallback(name, _oldValue, newValue) {
         if (this.shadowRoot) {
@@ -564,6 +586,19 @@ export class FakeFileDirectory extends FakeFileUIElement {
                     }
                     break;
                 }
+                case "fakefile-bgcolor":
+                    {
+                        const style = this.shadowRoot.querySelector('style.background-color');
+                        if (style) {
+                            if (newValue && colorRegExp.test(newValue)) {
+                                style.innerText = `details{background-color:${newValue}}`;
+                            }
+                            else {
+                                style.innerText = `details{background-color:${this.#backgroundDefault}}`;
+                            }
+                        }
+                    }
+                    break;
             }
         }
     }

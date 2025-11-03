@@ -219,6 +219,10 @@ export class FakeFileFile extends FakeFileUIElement {
             'toggle', (event: ToggleEvent) => {
                 this.open = (event.newState === 'open')
             }, {signal});
+        {
+            const style = this.shadowRoot!.querySelector('style.background-color')! as HTMLStyleElement;
+            style.innerText = `details{background-color:${this.backgroundColor}}`;
+        }
         if (metadata) {
             metadata.replaceChildren();
             this.updateHeaders();
@@ -582,6 +586,10 @@ export class FakeFileDirectory extends FakeFileUIElement {
             'toggle', (event: ToggleEvent) => {
                 this.isexpanded = (event.newState === 'open');
             }, {signal});
+        {
+            const style = this.shadowRoot!.querySelector('style.background-color')! as HTMLStyleElement;
+            style.innerText = `details{background-color:${this.backgroundColor}}`;
+        }
     }
 
     attributeChangedCallback(name: string, _oldValue: string | null, newValue: string | null): void {
