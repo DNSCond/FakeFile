@@ -46,6 +46,29 @@ export class FakeFileUIElement extends HTMLElement {
     get lastMod() {
         return new Date(NaN);
     }
+    set backgroundColor(color) {
+        if (color === null) {
+            this.removeAttribute('fakefile-bgcolor');
+        }
+        else if (typeof color === "string" && /^#?[a-f0-9]/i.test(color)) {
+            color = '#' + color.replace(/^#/, '');
+            this.setAttribute('fakefile-bgcolor', color);
+        }
+        else
+            throw new TypeError('color must be a color in the hex color format');
+    }
+    get backgroundColor() {
+        const color = this.getAttribute('fakefile-bgcolor');
+        if (color === null)
+            return null;
+        else {
+            if (/^#?[a-f0-9]/i.test(color)) {
+                return color;
+            }
+            else
+                return undefined;
+        }
+    }
 }
 /**
  * about types:
@@ -131,9 +154,10 @@ export function stringtoType(type, string, keepType = false) {
     return asIs;
 }
 export class FakeFileFile extends FakeFileUIElement {
-    #observer;
-    #abortController;
+    #observer = new MutationObserver(change => this.#attributeChangedCallback(change));
     #headerval = new Map;
+    #abortController;
+    #backgroundDefault = '#E7F4FD'; /*#C9EAFF*/
     static get observedAttributes() {
         return ['ff-name', 'lastmod', 'open', 'bytesize', 'headerval'];
     }
@@ -149,11 +173,14 @@ export class FakeFileFile extends FakeFileUIElement {
         const div = document.createElement('div');
         div.className = 'content';
         div.append(Object.assign(document.createElement('slot'), { innerHTML: '<span style=font-style:italic>empty file</span>' }));
-        details.append(summary, head, div);
+        details.append(summary, head, div); //
+        const bgc = Object.assign(document.createElement('style'), {
+            innerText: `details{background-color:${this.#backgroundDefault}`,
+            className: "background-color",
+        });
         this.attachShadow({ mode: 'open' }).append(Object.assign(document.createElement('style'), {
             innerText: `:host{font-family:monospace}
             details {color:black;/* File */
-            background-color:#E7F4FD/*#C9EAFF*/;
                 border: solid black 2px;
                 border-right: none;
                 padding: 0.5em;
@@ -166,14 +193,16 @@ export class FakeFileFile extends FakeFileUIElement {
             } dt:after {
                 content: ": ";
             }`.replaceAll(/\s+/g, ' '),
-        }), details);
+        }), bgc, details);
+    }
+    get backgroundColor() {
+        return super.backgroundColor ?? this.#backgroundDefault;
     }
     connectedCallback() {
         super.connectedCallback();
         this.#abortController?.abort();
         const { signal } = (this.#abortController = new AbortController);
         const metadata = this.shadowRoot?.querySelector('.metadata');
-        this.#observer = new MutationObserver(change => this.#attributeChangedCallback(change));
         this.#observer.observe(this, { attributes: true, attributeOldValue: true });
         this.shadowRoot.querySelector('details').addEventListener(
         // @ts-ignore
@@ -470,9 +499,10 @@ export class FakeFileFile extends FakeFileUIElement {
     }
 }
 export class FakeFileDirectory extends FakeFileUIElement {
+    #observer = new MutationObserver(_change => this.#updateRegistered());
     #registered = [];
     #abortController;
-    #observer;
+    #backgroundDefault = '#FFE8BA';
     static get observedAttributes() {
         return ['ff-name', 'isexpanded'];
     }
@@ -484,10 +514,13 @@ export class FakeFileDirectory extends FakeFileUIElement {
         summary.innerText = 'FakeFileDirectory';
         summary.className = 'summery';
         details.append(summary, list);
+        const bgc = Object.assign(document.createElement('style'), {
+            innerText: `details{background-color:${this.#backgroundDefault}}`,
+            className: "background-color",
+        });
         this.attachShadow({ mode: 'open' }).append(Object.assign(document.createElement('style'), {
             innerText: `:host{font-family:monospace}
             details {color:black;/* Directory */
-            background-color:#FFE8BA;
                 border: solid black 2px;
                 border-right: none;
                 padding: 0.5em;
@@ -497,13 +530,14 @@ export class FakeFileDirectory extends FakeFileUIElement {
             list-style-type:none;
             padding-left: 1ch;
             }`.replaceAll(/\s+/g, ' '),
-        }), details);
+        }), bgc, details);
+    }
+    get backgroundColor() {
+        return super.backgroundColor ?? this.#backgroundDefault;
     }
     connectedCallback() {
         super.connectedCallback();
         this.#updateRegistered();
-        // watch for child changes
-        this.#observer = new MutationObserver(() => this.#updateRegistered());
         const { signal } = (this.#abortController = new AbortController);
         this.#observer.observe(this, { childList: true });
         this.shadowRoot.querySelector('details').addEventListener(
