@@ -1,21 +1,12 @@
 {
-    "name": "datetime_global",
+    "private": true,
+    "name": "fakefile",
     "version": "0.7.2",
-    "description": "my Datetime untility, it mixes the Advanced capabilities of Temporal polyfill with the simplicity of Date",
-    "keywords": [
-        "date",
-        "datetime",
-        "Temporal",
-        "Date",
-        "time",
-        "format",
-        "Datetime_global"
-    ],
+    "description": "",
+    "keywords": [],
     "author": "binary-ant",
     "license": "MIT",
     "type": "module",
-    "scripts": {
-        "test": "node tests.js"
-    },
+    "scripts": {},
     "dependencies": {}
 }

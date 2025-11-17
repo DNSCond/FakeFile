@@ -204,11 +204,11 @@ export class FakeFileFile extends FakeFileUIElement {
         }), bgc, details);
     }
 
-    get backgroundColor() {
+    override get backgroundColor() {
         return super.backgroundColor ?? this.#backgroundDefault;
     }
 
-    connectedCallback(): void {
+    override connectedCallback(): void {
         super.connectedCallback();
         this.#abortController?.abort();
         const {signal} = (this.#abortController = new AbortController);
@@ -350,15 +350,15 @@ export class FakeFileFile extends FakeFileUIElement {
                 const valElement = this.ownerDocument.createElement('dd');
                 const div = this.ownerDocument.createElement('div');
                 div.append(keyElement, valElement);
-                div.dataset.keyName = string;
+                div.dataset["keyName"] = string;
                 elements[string] = div;
             }
             const changesToMake: HTMLElement[] = [];
             for (const change of changes) {
                 if (elements[change.changeName]) {
                     // const {keyElement, valElement} = elements[change.changeName];
-                    const keyElement = elements[change.changeName].querySelector('dt') ?? undefined;
-                    const valElement = elements[change.changeName].querySelector('dd') ?? undefined;
+                    const keyElement = elements[change.changeName]!.querySelector('dt') ?? undefined;
+                    const valElement = elements[change.changeName]!.querySelector('dd') ?? undefined;
                     if (change.newValue === null) {
                         elements[change.changeName]?.remove();
                     }
@@ -369,7 +369,7 @@ export class FakeFileFile extends FakeFileUIElement {
                         const span = this.#normalizeValueString(change.changeName, change.newValue);
                         valElement.replaceChildren(span);
                         keyElement.innerText = uppercaseAfterHyphen(change.changeName);
-                        changesToMake.push(elements[change.changeName]);
+                        changesToMake.push(elements[change.changeName]!);
                     }
                 }
             }
@@ -405,7 +405,7 @@ export class FakeFileFile extends FakeFileUIElement {
         return span;
     }
 
-    set bytesize(value: number | null) {
+    override set bytesize(value: number | null) {
         if (value === null) {
             this.removeAttribute('bytesize');
         } else if (Number.isSafeInteger(value)) {
@@ -413,7 +413,7 @@ export class FakeFileFile extends FakeFileUIElement {
         } else throw RangeError(`${value} is not a valid bytesize=""`);
     }
 
-    get bytesize(): number {
+    override get bytesize(): number {
         return +this.getAttribute('bytesize')!;
     }
 
@@ -459,17 +459,19 @@ export class FakeFileFile extends FakeFileUIElement {
         const temporary = this.headerVal?.replaceAll(/\s+/g, '');
         if (temporary === undefined) return null;
         const result: Map<string, string> = new Map;
-        const types: { key: string, val: string }[] = temporary
+        const types: { key: string | undefined, val: string | undefined }[] = temporary
             .toLowerCase().split(/,/g)
             .map(m => m.split(/=/g))
             .map(([key, val]) => ({key, val}));
         for (const {key, val} of types) {
+            if (key === undefined || val === undefined)
+                continue;
             result.set(key, val);
         }
         return result;
     }
 
-    set lastMod(value: Date | string | number | null) {
+    override set lastMod(value: Date | string | number | null) {
         if (value === null) {
             this.removeAttribute('lastmod');
         } else {
@@ -478,7 +480,7 @@ export class FakeFileFile extends FakeFileUIElement {
         }
     }
 
-    get lastMod(): Date | null {
+    override get lastMod(): Date | null {
         const dt = this.getAttribute('lastmod');
         if (dt == null) return null;
         return new Date(dt);
@@ -530,7 +532,7 @@ export class FakeFileFile extends FakeFileUIElement {
         return result;
     }
 
-    _whenAllFFElementsDefined(): void {
+    override _whenAllFFElementsDefined(): void {
     }
 }
 
@@ -572,11 +574,15 @@ export class FakeFileDirectory extends FakeFileUIElement {
         }), bgc, details);
     }
 
-    get backgroundColor() {
+    override get backgroundColor() {
         return super.backgroundColor ?? this.#backgroundDefault;
     }
 
-    connectedCallback() {
+    override set backgroundColor(value) {
+        super.backgroundColor = value;
+    }
+
+    override connectedCallback() {
         super.connectedCallback();
         this.#updateRegistered();
         const {signal} = (this.#abortController = new AbortController);
@@ -687,15 +693,15 @@ export class FakeFileDirectory extends FakeFileUIElement {
         return findLatestDate(this.childrenEntries.map(m => m.lastMod));
     }
 
-    get lastMod(): Date | null {
+    override get lastMod(): Date | null {
         return this.lastModified;
     }
 
-    get bytesize(): number {
+    override get bytesize(): number {
         return this.childrenEntries.map(m => m.bytesize).reduce((prev, curr) => curr + prev, 0);
     }
 
-    _whenAllFFElementsDefined(): void {
+    override _whenAllFFElementsDefined(): void {
         this.#updateRegistered();
     }
 }
