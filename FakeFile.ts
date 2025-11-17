@@ -208,6 +208,10 @@ export class FakeFileFile extends FakeFileUIElement {
         return super.backgroundColor ?? this.#backgroundDefault;
     }
 
+    override set backgroundColor(value) {
+        super.backgroundColor = value;
+    }
+
     override connectedCallback(): void {
         super.connectedCallback();
         this.#abortController?.abort();

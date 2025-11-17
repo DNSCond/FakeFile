@@ -199,6 +199,9 @@ export class FakeFileFile extends FakeFileUIElement {
     get backgroundColor() {
         return super.backgroundColor ?? this.#backgroundDefault;
     }
+    set backgroundColor(value) {
+        super.backgroundColor = value;
+    }
     connectedCallback() {
         super.connectedCallback();
         this.#abortController?.abort();
