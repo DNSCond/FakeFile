@@ -341,7 +341,7 @@ export class FakeFileFile extends FakeFileUIElement {
                 const valElement = this.ownerDocument.createElement('dd');
                 const div = this.ownerDocument.createElement('div');
                 div.append(keyElement, valElement);
-                div.dataset.keyName = string;
+                div.dataset["keyName"] = string;
                 elements[string] = div;
             }
             const changesToMake = [];
@@ -454,6 +454,8 @@ export class FakeFileFile extends FakeFileUIElement {
             .map(m => m.split(/=/g))
             .map(([key, val]) => ({ key, val }));
         for (const { key, val } of types) {
+            if (key === undefined || val === undefined)
+                continue;
             result.set(key, val);
         }
         return result;
@@ -552,6 +554,9 @@ export class FakeFileDirectory extends FakeFileUIElement {
     }
     get backgroundColor() {
         return super.backgroundColor ?? this.#backgroundDefault;
+    }
+    set backgroundColor(value) {
+        super.backgroundColor = value;
     }
     connectedCallback() {
         super.connectedCallback();
